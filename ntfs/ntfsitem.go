@@ -34,8 +34,15 @@ func (i *Item) Read(p []byte) (n int, err error) {
 // ReadAt reads bytes starting at off into passed buffer.
 func (i *Item) ReadAt(p []byte, off int64) (n int, err error) {
 	if i.attribute == nil {
-		attribute, err := i.entry.GetAttribute(i.ntfsCtx, 128, -1)
+		attribute, err := i.entry.GetAttribute(i.ntfsCtx, 128, -1, "")
 		if err != nil {
+			// No $DATA attribute — index-only metadata files (e.g. $Extend/$ObjId,
+			// $Quota, $Reparse) have no readable data stream; treat them as empty.
+			// go-ntfs v0.2.0 enumerates these and returns "Attribute not found", the
+			// previous version silently ignored them
+			if strings.Contains(err.Error(), "Attribute not found") {
+				return 0, io.EOF
+			}
 			return 0, err
 		}
 		i.attribute = attribute
